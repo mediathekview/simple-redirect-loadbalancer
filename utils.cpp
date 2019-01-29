@@ -31,6 +31,20 @@ void fill_default_server_data(std::vector<ServerData> &list) {
     list.emplace_back(ServerData("https://verteiler.mediathekviewweb.de/"));
 }
 
+void prepare_server_list(boost::program_options::variables_map &vm, std::vector<ServerData> &g_serverList) {
+    if (vm.count("server-url")) {
+        std::cout << "Server URLs are: " << std::endl;
+        to_cout(vm["server-url"].as<std::vector<std::string>>());
+        syslog(LOG_NOTICE, "Using supplied URLs for redirection");
+
+        for (auto const &item : vm["server-url"].as<std::vector<std::string>>())
+            g_serverList.emplace_back(ServerData(item));
+    } else {
+        syslog(LOG_WARNING, "Empty server URLs, using internal default list");
+        fill_default_server_data(g_serverList);
+    }
+}
+
 std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index) {
     std::lock_guard<std::mutex> lock(mutex);
 

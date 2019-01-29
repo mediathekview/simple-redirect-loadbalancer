@@ -147,17 +147,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
-    if (vm.count("server-url")) {
-        std::cout << "Server URLs are: " << std::endl;
-        to_cout(vm["server-url"].as<std::vector<std::string>>());
-        syslog(LOG_NOTICE, "Using supplied URLs for redirection");
-
-        for (auto const &item : vm["server-url"].as<std::vector<std::string>>())
-            g_serverList.emplace_back(ServerData(item));
-    } else {
-        syslog(LOG_WARNING, "Empty server URLs, using internal default list");
-        fill_default_server_data(g_serverList);
-    }
+    prepare_server_list(vm, g_serverList);
 
     auto const address = boost::asio::ip::make_address(addr);
 
