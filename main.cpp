@@ -20,25 +20,10 @@
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
 
-static const std::string APPLICATION_NAME = "mv_redirect_server";
+static const std::string APPLICATION_NAME{"mv_redirect_server"};
 static std::mutex g_serverMutex;
-static unsigned long g_indexServer = 0;
+static unsigned long g_serverIndex = 0;
 static std::vector<ServerData> g_serverList;
-
-std::string findNewServer() {
-    std::lock_guard<std::mutex> lock(g_serverMutex);
-
-    ServerData serverData = g_serverList.at(g_indexServer);
-    do {
-        g_indexServer++;
-        if (g_indexServer > (g_serverList.size() - 1))
-            g_indexServer = 0;
-        serverData = g_serverList.at(g_indexServer);
-    }
-    while (!serverData.active_.load());
-
-    return std::string(serverData.url_);
-}
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
@@ -56,14 +41,12 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
                     return res;
                 };
 
-
         return send(std::move(bad_request("Unknown HTTP-method")));
     }
 
-    const tcp::endpoint endpoint = send.stream_.remote_endpoint();
-    const boost::asio::ip::address addr = endpoint.address();
+    const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
     const std::string destination = req.target().to_string();
-    const std::string server = findNewServer();
+    const std::string server = findNewServer(std::ref(g_serverList), std::ref(g_serverMutex), std::ref(g_serverIndex));
     const std::string logMessage = "Redirecting Target: " + destination + " for IP " + addr.to_string() + " to server "
                                    + server;
     syslog(LOG_NOTICE, "%s", logMessage.c_str());

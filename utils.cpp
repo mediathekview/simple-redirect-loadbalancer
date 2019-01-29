@@ -30,3 +30,17 @@ void fill_default_server_data(std::vector<ServerData> &list) {
     list.emplace_back(ServerData("https://verteiler6.mediathekview.de/"));
     list.emplace_back(ServerData("https://verteiler.mediathekviewweb.de/"));
 }
+
+std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    ServerData serverData = list.at(index);
+    do {
+        index++;
+        if (index > (list.size() - 1))
+            index = 0;
+        serverData = list.at(index);
+    } while (!serverData.active_.load());
+
+    return std::string(serverData.url_);
+}

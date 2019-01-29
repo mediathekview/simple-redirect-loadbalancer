@@ -12,4 +12,5 @@ void wait_for_thread_termination(std::vector<std::thread> &v);
 void to_cout(const std::vector<std::string> &v);
 void fail(boost::system::error_code ec, char const *what);
 void fill_default_server_data(std::vector<ServerData> &list);
+std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index);
 #endif //MV_REDIRECT_SERVER_UTILS_H
