@@ -10,7 +10,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -flto")
 
 find_package(Boost REQUIRED COMPONENTS system coroutine program_options)
 
-add_executable(mv_redirect_server main.cpp lambda.h ServerData.h)
+add_executable(mv_redirect_server main.cpp lambda.h ServerData.h watchdog_handler.cpp watchdog_handler.h utils.cpp utils.h)
 
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})

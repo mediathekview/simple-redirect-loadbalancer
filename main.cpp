@@ -14,6 +14,8 @@
 
 #include "lambda.h"
 #include "ServerData.h"
+#include "watchdog_handler.h"
+#include "utils.h"
 
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
@@ -81,10 +83,6 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
     return send(std::move(redirect()));
 }
 
-void fail(boost::system::error_code ec, char const *what) {
-    syslog(LOG_CRIT, "%s: %s", what, ec.message().c_str());
-}
-
 void do_session(tcp::socket &socket, const boost::asio::yield_context &yield) {
     bool close = false;
     boost::system::error_code ec;
@@ -138,27 +136,10 @@ void do_listen(boost::asio::io_context &ioc, const tcp::endpoint &endpoint, cons
     }
 }
 
-void waitForThreadTermination(std::vector<std::thread> &v) {
-    syslog(LOG_NOTICE, "Waiting for thread termination.");
-    for (auto &t : v)
-        t.join();
-}
-
-void watchdog_timer_handler(const boost::system::error_code & /*e*/,
-                            boost::asio::steady_timer *t) {
-    std::cout << "WATCHDOG TIMER called" << std::endl;
-
-    t->expires_at(t->expiry() + boost::asio::chrono::seconds(60));
-    t->async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, t));
-}
-
-void to_cout(const std::vector<std::string> &v) {
-    std::copy(v.begin(), v.end(), std::ostream_iterator<std::string>{std::cout, "\n"});
-}
-
 int main(int argc, char *argv[]) {
     unsigned short port;
     std::string addr;
+    boost::program_options::variables_map vm;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
     std::cout << "Version 0.6" << std::endl;
@@ -171,12 +152,11 @@ int main(int argc, char *argv[]) {
              "HTTP bind address")
             ("server-url", boost::program_options::value<std::vector<std::string>>(), "Verteiler Server URL");
     //server-url kann ohne Parameter einfach angegeben werden
-    boost::program_options::positional_options_description p;
-    p.add("server-url", -1);
+    boost::program_options::positional_options_description pod;
+    pod.add("server-url", -1);
 
-    boost::program_options::variables_map vm;
     boost::program_options::store(
-            boost::program_options::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+            boost::program_options::command_line_parser(argc, argv).options(desc).positional(pod).run(), vm);
     boost::program_options::notify(vm);
 
     if (vm.count("help")) {
@@ -193,15 +173,8 @@ int main(int argc, char *argv[]) {
             g_serverList.emplace_back(ServerData(item));
     } else {
         syslog(LOG_WARNING, "Empty server URLs, using internal default list");
-        g_serverList.emplace_back(ServerData("https://verteiler1.mediathekview.de/"));
-        g_serverList.emplace_back(ServerData("https://verteiler2.mediathekview.de/"));
-        g_serverList.emplace_back(ServerData("https://verteiler4.mediathekview.de/"));
-        g_serverList.emplace_back(ServerData("https://verteiler6.mediathekview.de/"));
-        g_serverList.emplace_back(ServerData("https://verteiler.mediathekviewweb.de/"));
+        fill_default_server_data(g_serverList);
     }
-
-    std::cout << "Verteiler server list size: " << g_serverList.size() << std::endl;
-
 
     auto const address = boost::asio::ip::make_address(addr);
 
@@ -226,10 +199,10 @@ int main(int argc, char *argv[]) {
     //http handler
     boost::asio::spawn(ioc, std::bind(&do_listen, std::ref(ioc), tcp::endpoint{address, port}, std::placeholders::_1));
 
-    std::vector<std::thread> v;
-    v.reserve(static_cast<unsigned long>(threads - 1));
+    std::vector<std::thread> ioc_thread_list;
+    ioc_thread_list.reserve(static_cast<unsigned long>(threads - 1));
     for (auto i = threads - 1; i > 0; --i)
-        v.emplace_back([&ioc] {
+        ioc_thread_list.emplace_back([&ioc] {
             ioc.run();
         });
 
@@ -237,7 +210,7 @@ int main(int argc, char *argv[]) {
 
     closelog();
 
-    waitForThreadTermination(v);
+    wait_for_thread_termination(ioc_thread_list);
 
     syslog(LOG_NOTICE, "Program exited normally");
 
