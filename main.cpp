@@ -24,19 +24,16 @@ static unsigned long g_indexServer = 0;
 static std::vector<ServerData> g_serverList;
 
 std::string findNewServer() {
-    //FIXME da ist noch der Wurm drin
     std::lock_guard<std::mutex> lock(g_serverMutex);
-    g_indexServer++;
-    if (g_indexServer > (g_serverList.size() - 1))
-        g_indexServer = 0;
 
     ServerData serverData = g_serverList.at(g_indexServer);
-    while (!serverData.active_.load()) {
+    do {
         g_indexServer++;
         if (g_indexServer > (g_serverList.size() - 1))
             g_indexServer = 0;
         serverData = g_serverList.at(g_indexServer);
     }
+    while (!serverData.active_.load());
 
     return std::string(serverData.url_);
 }
