@@ -43,6 +43,6 @@ void watchdog_timer_handler(const boost::system::error_code & /*e*/,
     curl_easy_cleanup(curl);
     curl_global_cleanup();
 
-    t->expires_at(t->expiry() + boost::asio::chrono::seconds(20));
+    t->expires_at(t->expiry() + boost::asio::chrono::seconds(60));
     t->async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, t, serverList));
 }
