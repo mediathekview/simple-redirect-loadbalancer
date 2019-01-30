@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     boost::program_options::variables_map vm;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
-    std::cout << "Version 0.6" << std::endl;
+    std::cout << "Version 1.0" << std::endl;
 
     boost::program_options::options_description desc("Erlaubte Optionen");
     desc.add_options()
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
 
     //watchdog...
     boost::asio::steady_timer watchdog_timer(ioc, std::chrono::steady_clock::now() + std::chrono::seconds(10));
-    watchdog_timer.async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer));
+    watchdog_timer.async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer, &g_serverList));
 
     //http handler
     boost::asio::spawn(ioc, std::bind(&do_listen, std::ref(ioc), tcp::endpoint{address, port}, std::placeholders::_1));
