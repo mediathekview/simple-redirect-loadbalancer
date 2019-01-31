@@ -11,6 +11,8 @@
 #include <mutex>
 
 #include <syslog.h>
+#include <curl/curl.h>
+
 
 #include "lambda.h"
 #include "ServerData.h"
@@ -20,16 +22,18 @@
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
 
-static const std::string APPLICATION_NAME{"mv_redirect_server"};
-static std::mutex g_serverMutex;
-static unsigned long g_serverIndex = 0;
-static std::vector<ServerData> g_serverList;
+const std::string APPLICATION_NAME{"mv_redirect_server"};
+std::mutex g_serverMutex;
+unsigned long g_serverIndex = 0;
+std::vector<ServerData> g_serverList;
+bool debug;
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
     // Make sure we can handle the method
     if (!(req.method() == http::verb::get) && !(req.method() == http::verb::head)) {
-        syslog(LOG_WARNING, "Illegal request other than GET or HEAD received.");
+        log(WARNING, "Illegal request other than GET or HEAD received.");
+
         auto const bad_request =
                 [&req](boost::beast::string_view why) {
                     http::response<http::string_body> res{http::status::bad_request, req.version()};
@@ -44,12 +48,14 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
         return send(std::move(bad_request("Unknown HTTP-method")));
     }
 
-    const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
     const std::string destination = req.target().to_string();
     const std::string server = findNewServer(std::ref(g_serverList), std::ref(g_serverMutex), std::ref(g_serverIndex));
+#ifdef DEBUG
+    const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
     const std::string logMessage = "Redirecting Target: " + destination + " for IP " + addr.to_string() + " to server "
                                    + server;
     syslog(LOG_NOTICE, "%s", logMessage.c_str());
+#endif
 
     auto const redirect =
             [&req, &destination, &server]() {
@@ -133,6 +139,7 @@ int main(int argc, char *argv[]) {
             ("port", boost::program_options::value<unsigned short>(&port)->default_value(8080), "HTTP listener port")
             ("bind-addr", boost::program_options::value<std::string>(&addr)->default_value("0.0.0.0"),
              "HTTP bind address")
+            ("debug", boost::program_options::value<bool>(&debug)->default_value(false), "enable debug mode")
             ("server-url", boost::program_options::value<std::vector<std::string>>(), "Verteiler Server URL");
     //server-url kann ohne Parameter einfach angegeben werden
     boost::program_options::positional_options_description pod;
@@ -149,16 +156,16 @@ int main(int argc, char *argv[]) {
 
     prepare_server_list(vm, g_serverList);
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
     auto const address = boost::asio::ip::make_address(addr);
 
     openlog(APPLICATION_NAME.c_str(), LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
-    syslog(LOG_NOTICE, "HTTP Redirect Server started");
+
+    log(INFO, "HTTP Redirect Server started");
 
     auto const threads = std::max<int>(1, std::thread::hardware_concurrency());
     boost::asio::io_context ioc{threads};
-    syslog(LOG_INFO, "Using number of threads: %d", threads);
-
-    syslog(LOG_NOTICE, "Listening for HTTP GET requests on port %d", port);
 
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
     signals.async_wait([&](boost::system::error_code const &, int) {
@@ -181,11 +188,11 @@ int main(int argc, char *argv[]) {
 
     ioc.run();
 
+    curl_global_cleanup();
+
     closelog();
 
     wait_for_thread_termination(ioc_thread_list);
-
-    syslog(LOG_NOTICE, "Program exited normally");
 
     return EXIT_SUCCESS;
 }

@@ -7,6 +7,7 @@
 #include <thread>
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
+#include <syslog.h>
 
 #include "ServerData.h"
 
@@ -16,4 +17,12 @@ void fail(boost::system::error_code ec, char const *what);
 void fill_default_server_data(std::vector<ServerData> &list);
 std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index);
 void prepare_server_list(boost::program_options::variables_map &vm, std::vector<ServerData> &g_serverList);
+
+typedef enum {
+    INFO = LOG_NOTICE,
+    WARNING = LOG_WARNING,
+    ERROR = LOG_ERR
+} log_level;
+
+void log(log_level level, std::string msg);
 #endif //MV_REDIRECT_SERVER_UTILS_H

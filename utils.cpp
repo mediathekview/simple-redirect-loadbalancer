@@ -8,9 +8,20 @@
 #include <iostream>
 #include <vector>
 
+extern bool debug; //debug flag from main
+
+void log(log_level level, std::string msg) {
+#ifdef DEBUG
+    if (!debug)
+        return;
+
+    syslog(level,"%s", msg.c_str());
+#endif
+}
 
 void wait_for_thread_termination(std::vector<std::thread> &v) {
-    syslog(LOG_NOTICE, "Waiting for thread termination.");
+    log(INFO, "Waiting for thread termination");
+
     for (auto &t : v)
         t.join();
 }
@@ -35,12 +46,13 @@ void prepare_server_list(boost::program_options::variables_map &vm, std::vector<
     if (vm.count("server-url")) {
         std::cout << "Server URLs are: " << std::endl;
         to_cout(vm["server-url"].as<std::vector<std::string>>());
-        syslog(LOG_NOTICE, "Using supplied URLs for redirection");
+        log(INFO, "Using supplied URLs for redirection");
 
         for (auto const &item : vm["server-url"].as<std::vector<std::string>>())
             g_serverList.emplace_back(ServerData(item));
     } else {
-        syslog(LOG_WARNING, "Empty server URLs, using internal default list");
+        log(WARNING, "Empty server URLs, using internal default list");
+
         fill_default_server_data(g_serverList);
     }
 }
