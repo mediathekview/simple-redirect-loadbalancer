@@ -10,13 +10,18 @@
 
 extern bool debug; //debug flag from main
 
+/**
+ * Thread pool used for keeping syslog off the main exec thread.
+ */
+static boost::asio::thread_pool syslog_pool(std::thread::hardware_concurrency());
+
 void log(log_level level, std::string msg) {
-#ifdef DEBUG
     if (!debug)
         return;
 
-    syslog(level,"%s", msg.c_str());
-#endif
+    boost::asio::post(syslog_pool, [level, msg]() {
+        syslog(level, "%s", msg.c_str());
+    });
 }
 
 void wait_for_thread_termination(std::vector<std::thread> &v) {

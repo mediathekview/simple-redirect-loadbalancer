@@ -11,6 +11,11 @@
 #include "ServerData.h"
 #include "utils.h"
 
+/**
+ * Thread pool for all watchdog related activities
+ */
+static boost::asio::thread_pool watchdog_pool(std::thread::hardware_concurrency());
+
 void check_server(ServerData &server) {
     CURL *curl = curl_easy_init();
 
@@ -39,8 +44,13 @@ void check_server(ServerData &server) {
 void watchdog_timer_handler(const boost::system::error_code & /*e*/,
                             boost::asio::steady_timer *t, std::vector<ServerData> *serverList) {
 
-    for (auto &server : *serverList)
-        check_server(server);
+    for (auto &server : *serverList) {
+        boost::asio::post(watchdog_pool, [&server]() {
+            check_server(server);
+        });
+    }
+    //wait for all watchdog threads to complete
+    watchdog_pool.join();
 
     t->expires_at(t->expiry() + boost::asio::chrono::seconds(60));
     t->async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, t, serverList));

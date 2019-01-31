@@ -10,7 +10,6 @@
 #include <thread>
 #include <mutex>
 
-#include <syslog.h>
 #include <curl/curl.h>
 
 
@@ -50,12 +49,10 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
 
     const std::string destination = req.target().to_string();
     const std::string server = findNewServer(std::ref(g_serverList), std::ref(g_serverMutex), std::ref(g_serverIndex));
-#ifdef DEBUG
     const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
     const std::string logMessage = "Redirecting Target: " + destination + " for IP " + addr.to_string() + " to server "
                                    + server;
-    syslog(LOG_NOTICE, "%s", logMessage.c_str());
-#endif
+    log(INFO, logMessage);
 
     auto const redirect =
             [&req, &destination, &server]() {
