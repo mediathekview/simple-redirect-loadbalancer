@@ -1,16 +1,6 @@
-FROM alpine:latest as build
+ARG BUILD_IMAGE
 
-RUN apk add --no-cache curl-dev boost-dev cmake make g++
-
-WORKDIR /tmp/simple-redirect-loadbalancer
-
-ADD . .
-
-RUN mkdir build
-WORKDIR /tmp/simple-redirect-loadbalancer/build
-RUN cmake -DCMAKE_BUILD_TYPE=Release ..
-RUN make -j 4
-
+FROM ${BUILD_IMAGE} as build
 
 FROM alpine:latest
 
