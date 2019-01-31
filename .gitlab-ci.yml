@@ -7,7 +7,6 @@ variables:
 
 before_script:
   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  - mkdir empty_dir
 
 image: docker:latest
 
@@ -25,6 +24,6 @@ build:
     - docker pull $DIST_IMAGE_LATEST || true
     - docker pull $DIST_IMAGE_SHA || true
     - docker pull $DIST_IMAGE_SHA_BEFORE || true
-    - docker build --pull --cache-from $DIST_IMAGE_LATEST --cache-from $DIST_IMAGE_SHA_BEFORE --cache-from DIST_IMAGE_SHA --tag $DIST_IMAGE_SHA --tag $DIST_IMAGE_LATEST empty_dir
+    - docker build --pull --cache-from $DIST_IMAGE_LATEST --cache-from $DIST_IMAGE_SHA_BEFORE --cache-from DIST_IMAGE_SHA --tag $DIST_IMAGE_SHA --tag $DIST_IMAGE_LATEST .
     - docker push $DIST_IMAGE_LATEST
     - docker push $DIST_IMAGE_SHA
