@@ -65,12 +65,12 @@ void prepare_server_list(boost::program_options::variables_map &vm, std::vector<
 std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index) {
     std::lock_guard<std::mutex> lock(mutex);
 
-    ServerData serverData = list.at(index);
+    ServerData serverData = list[index];
     do {
         index++;
         if (index > (list.size() - 1))
             index = 0;
-        serverData = list.at(index);
+        serverData = list[index];
     } while (!serverData.active_.load());
 
     return std::string(serverData.url_);
