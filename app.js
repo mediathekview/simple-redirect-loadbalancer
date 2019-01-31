@@ -12,22 +12,31 @@ const verteilers = [
   'https://verteiler.mediathekviewweb.de/'
 ];
 
-if (Cluster.isMaster) {
+/* if (Cluster.isMaster) {
   for (let i = 0; i < coreCount; i++) {
     Cluster.fork();
   }
 } else {
-  Http.createServer((request, response) => {
-    const verteiler = getRandomVerteiler();
-  
-    response.writeHead(301, {
-      'Location': verteiler
-    });
-  
-    response.end();
-  }).listen(8999);
-
   console.log(`Worker ${process.pid} started`);
+} */
+
+createServer();
+
+function createServer() {
+  Http.createServer((request, response) => {
+    if (request.method == 'GET' || request.method == "POST") {
+      const verteiler = getRandomVerteiler();
+
+      response.writeHead(301, {
+        'Location': verteiler
+      });
+
+      response.end();
+    } else {
+      response.writeHead(400, {});
+      response.end();
+    }
+  }).listen(8999);
 }
 
 function getRandomVerteiler() {
