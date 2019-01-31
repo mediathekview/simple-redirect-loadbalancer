@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
     boost::program_options::variables_map vm;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
-    std::cout << "Version 1.0" << std::endl;
+    std::cout << "Version 1.2" << std::endl;
 
     boost::program_options::options_description desc("Erlaubte Optionen");
     desc.add_options()
