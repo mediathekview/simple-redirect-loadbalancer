@@ -17,14 +17,14 @@ services:
 stages:
   - build
 
-build:server:
+build:
   stage: build
   tags:
     - docker
   script:
-    - docker pull $DOCKER_BASH_IMAGE_LATEST || true
+    - docker pull $DIST_IMAGE_LATEST || true
     - docker pull $DIST_IMAGE_SHA || true
     - docker pull $DIST_IMAGE_SHA_BEFORE || true
-    - docker build --pull --cache-from $DOCKER_BASH_IMAGE_LATEST --cache-from $DIST_IMAGE_SHA_BEFORE --cache-from DIST_IMAGE_SHA --tag $DOCKER_BASH_IMAGE_SHA --tag $DOCKER_BASH_IMAGE_LATEST empty_dir
-    - docker push $DOCKER_BASH_IMAGE_LATEST
-    - docker push $DOCKER_BASH_IMAGE_SHA
+    - docker build --pull --cache-from $DIST_IMAGE_LATEST --cache-from $DIST_IMAGE_SHA_BEFORE --cache-from DIST_IMAGE_SHA --tag $DIST_IMAGE_SHA --tag $DIST_IMAGE_LATEST empty_dir
+    - docker push $DIST_IMAGE_LATEST
+    - docker push $DIST_IMAGE_SHA
