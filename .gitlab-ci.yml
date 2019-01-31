@@ -61,4 +61,4 @@ pack:dist:
   except:
     - schedules
   script:
-    - bash ci/build-image.sh -f docker/dist.dockerfile -a DIST_IMAGE=$DIST_IMAGE_SHA -c $DIST_IMAGE_BEFORE_SHA -c $DIST_IMAGE_SHA -n $DIST_IMAGE_SHA -n $DIST_IMAGE_LATEST empty_dir
+    - bash ci/build-image.sh -f docker/dist.dockerfile -a BUILD_IMAGE=$BUILD_IMAGE_SHA -c $DIST_IMAGE_BEFORE_SHA -c $DIST_IMAGE_SHA -n $DIST_IMAGE_SHA -n $DIST_IMAGE_LATEST empty_dir
