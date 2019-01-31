@@ -24,7 +24,7 @@ createServer();
 
 function createServer() {
   Http.createServer((request, response) => {
-    if (request.method == 'GET' || request.method == "POST") {
+    if (request.method == 'GET' || request.method == 'HEAD') {
       const verteiler = getRandomVerteiler();
 
       response.writeHead(301, {
