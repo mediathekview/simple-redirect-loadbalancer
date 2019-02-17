@@ -12,11 +12,12 @@
 
 #include <curl/curl.h>
 
-
 #include "lambda.h"
 #include "ServerData.h"
 #include "watchdog_handler.h"
 #include "utils.h"
+#include "config.hpp"
+#include "Generators.hpp"
 
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
@@ -26,6 +27,20 @@ std::mutex g_serverMutex;
 unsigned long g_serverIndex = 0;
 std::vector<ServerData> g_serverList;
 bool debug;
+
+std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    ServerData serverData = list[index];
+    do {
+        index++;
+        if (index > (list.size() - 1))
+            index = 0;
+        serverData = list[index];
+    } while (!serverData.active_.load());
+
+    return std::string(serverData.url_);
+}
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
@@ -122,10 +137,56 @@ void do_listen(boost::asio::io_context &ioc, const tcp::endpoint &endpoint, cons
     }
 }
 
+quicktype::config parse_config_file() {
+    quicktype::config data;
+    try {
+        data = nlohmann::json::parse("{\"version\": 1,\n"
+                                     "  \"port\": 8080,\n"
+                                     "  \"address\":\"0.0.0.0\",\n"
+                                     "  \"servers\": ["
+                                     "      {\"url\": \"https://verteiler1.mediathekview.de/\", \"weight\": 1.2},\n"
+                                     "      {\"url\": \"https://verteiler2.mediathekview.de/\", \"weight\": 1.2},\n"
+                                     "      {\"url\": \"https://verteiler4.mediathekview.de/\", \"weight\": 1.2},\n"
+                                     "      {\"url\": \"https://verteiler6.mediathekview.de/\", \"weight\": 1.2},\n"
+                                     "      {\"url\": \"https://verteiler.mediathekviewweb.de/\", \"weight\": 1.2}\n"
+                                     "  ]"
+                                     "}");
+
+        if (data.version != 1) {
+            std::cerr << "Invalid config file format" << std::endl;
+            ::exit(EXIT_FAILURE);
+        }
+
+#ifndef NDEBUG
+        std::cout << "num servers: " << data.servers.size() << std::endl;
+        std::cout << "port: " << data.port << std::endl;
+        std::cout << "address: " << data.address << std::endl;
+#endif
+    }
+    catch (nlohmann::detail::out_of_range &e) {
+        std::cerr << "EXCEPTION PARSING CONFIG FILE: " << e.what() << std::endl;
+        ::exit(EXIT_FAILURE);
+    }
+
+    return data;
+}
+
+void setup_server_list(quicktype::config &data) {
+    for (const auto &item : data.servers)
+        g_serverList.emplace_back(ServerData{item.url});
+}
+
+void wait_for_thread_termination(std::vector<std::thread> &v) {
+    log(INFO, "Waiting for thread termination");
+
+    for (auto &t : v)
+        t.join();
+}
+
 int main(int argc, char *argv[]) {
-    unsigned short port;
-    std::string addr;
     boost::program_options::variables_map vm;
+    std::string config_file_name;
+    quicktype::config data;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
     std::cout << "Version 1.2" << std::endl;
@@ -133,17 +194,10 @@ int main(int argc, char *argv[]) {
     boost::program_options::options_description desc("Erlaubte Optionen");
     desc.add_options()
             ("help", "Hilfe anzeigen")
-            ("port", boost::program_options::value<unsigned short>(&port)->default_value(8080), "HTTP listener port")
-            ("bind-addr", boost::program_options::value<std::string>(&addr)->default_value("0.0.0.0"),
-             "HTTP bind address")
             ("debug", boost::program_options::value<bool>(&debug)->default_value(false), "enable debug mode")
-            ("server-url", boost::program_options::value<std::vector<std::string>>(), "Verteiler Server URL");
-    //server-url kann ohne Parameter einfach angegeben werden
-    boost::program_options::positional_options_description pod;
-    pod.add("server-url", -1);
+            ("config-file", boost::program_options::value<std::string>(&config_file_name)->required());
 
-    boost::program_options::store(
-            boost::program_options::command_line_parser(argc, argv).options(desc).positional(pod).run(), vm);
+    boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).run(), vm);
     boost::program_options::notify(vm);
 
     if (vm.count("help")) {
@@ -151,11 +205,11 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
-    prepare_server_list(vm, g_serverList);
+    data = parse_config_file();
+    //fill server data
+    setup_server_list(data);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    auto const address = boost::asio::ip::make_address(addr);
 
     openlog(APPLICATION_NAME.c_str(), LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
@@ -163,26 +217,32 @@ int main(int argc, char *argv[]) {
 
     auto const threads = std::max<int>(1, std::thread::hardware_concurrency());
     boost::asio::io_context ioc{threads};
-
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
+    boost::asio::steady_timer watchdog_timer(ioc, std::chrono::steady_clock::now() + std::chrono::seconds(10));
+
+    //signal handler
     signals.async_wait([&](boost::system::error_code const &, int) {
         ioc.stop();
     });
 
     //watchdog...
-    boost::asio::steady_timer watchdog_timer(ioc, std::chrono::steady_clock::now() + std::chrono::seconds(10));
-    watchdog_timer.async_wait(boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer, &g_serverList));
+    watchdog_timer.async_wait(
+            boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer, &g_serverList));
 
     //http handler
-    boost::asio::spawn(ioc, std::bind(&do_listen, std::ref(ioc), tcp::endpoint{address, port}, std::placeholders::_1));
+    boost::asio::spawn(ioc, std::bind(&do_listen, std::ref(ioc),
+                                      tcp::endpoint{boost::asio::ip::make_address(data.address), data.port},
+                                      std::placeholders::_1));
 
-    std::vector<std::thread> ioc_thread_list;
-    ioc_thread_list.reserve(static_cast<unsigned long>(threads - 1));
+    std::vector<std::thread> ioc_thread_list{static_cast<unsigned long>(threads - 1)};
     for (auto i = threads - 1; i > 0; --i)
         ioc_thread_list.emplace_back([&ioc] {
             ioc.run();
         });
 
+    /*
+     * RUN LOOP
+    */
     ioc.run();
 
     curl_global_cleanup();
