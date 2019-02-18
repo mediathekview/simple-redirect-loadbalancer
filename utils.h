@@ -8,8 +8,6 @@
 #include <boost/asio.hpp>
 #include <syslog.h>
 
-#include "ServerData.h"
-
 void fail(boost::system::error_code ec, char const *what);
 
 typedef enum {

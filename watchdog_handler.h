@@ -11,7 +11,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio.hpp>
 
-#include "ServerData.h"
+#include "server.hpp"
 
-void watchdog_timer_handler(const boost::system::error_code & /*e*/, boost::asio::steady_timer *t, std::vector<ServerData> *serverList);
+void watchdog_timer_handler(const boost::system::error_code & /*e*/, boost::asio::steady_timer *t,
+                            std::vector<quicktype::server> *serverList);
 #endif //MV_REDIRECT_SERVER_WATCHDOG_HANDLER_H

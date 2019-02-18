@@ -11,36 +11,25 @@
 #include <mutex>
 
 #include <curl/curl.h>
+#include <fstream>
 
 #include "lambda.h"
-#include "ServerData.h"
 #include "watchdog_handler.h"
 #include "utils.h"
 #include "config.hpp"
 #include "Generators.hpp"
+#include "ServerPool.h"
+
+#include <nlohmann/json.hpp>
+
 
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
 
-const std::string APPLICATION_NAME{"mv_redirect_server"};
-std::mutex g_serverMutex;
-unsigned long g_serverIndex = 0;
-std::vector<ServerData> g_serverList;
-bool debug;
+#define APPLICATION_NAME "mv_redirect_server"
+#define CONTENT_TYPE "text/html"
 
-std::string findNewServer(std::vector<ServerData> &list, std::mutex &mutex, unsigned long &index) {
-    std::lock_guard<std::mutex> lock(mutex);
-
-    ServerData serverData = list[index];
-    do {
-        index++;
-        if (index > (list.size() - 1))
-            index = 0;
-        serverData = list[index];
-    } while (!serverData.active_.load());
-
-    return std::string(serverData.url_);
-}
+ServerPool serverPool;
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
@@ -52,7 +41,7 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
                 [&req](boost::beast::string_view why) {
                     http::response<http::string_body> res{http::status::bad_request, req.version()};
                     res.set(http::field::server, APPLICATION_NAME);
-                    res.set(http::field::content_type, "text/html");
+                    res.set(http::field::content_type, CONTENT_TYPE);
                     res.keep_alive(req.keep_alive());
                     res.body() = why.to_string();
                     res.prepare_payload();
@@ -63,7 +52,7 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
     }
 
     const std::string destination = req.target().to_string();
-    const std::string server = findNewServer(std::ref(g_serverList), std::ref(g_serverMutex), std::ref(g_serverIndex));
+    const std::string server = serverPool.getNext().url;
     const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
     const std::string logMessage = "Redirecting Target: " + destination + " for IP " + addr.to_string() + " to server "
                                    + server;
@@ -73,7 +62,7 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
             [&req, &destination, &server]() {
                 http::response<http::string_body> res{http::status::temporary_redirect, req.version()};
                 res.set(http::field::server, APPLICATION_NAME);
-                res.set(http::field::content_type, "text/html");
+                res.set(http::field::content_type, CONTENT_TYPE);
                 res.set(http::field::location, server + destination);
                 res.keep_alive(req.keep_alive());
                 res.body() = "";
@@ -137,20 +126,28 @@ void do_listen(boost::asio::io_context &ioc, const tcp::endpoint &endpoint, cons
     }
 }
 
-quicktype::config parse_config_file() {
+quicktype::config parse_config_file(std::string &file_name) {
     quicktype::config data;
     try {
-        data = nlohmann::json::parse("{\"version\": 1,\n"
+        //working sample config
+/*        data = R"(
+                                     {\"version\": 1,\n"
                                      "  \"port\": 8080,\n"
                                      "  \"address\":\"0.0.0.0\",\n"
                                      "  \"servers\": ["
-                                     "      {\"url\": \"https://verteiler1.mediathekview.de/\", \"weight\": 1.2},\n"
-                                     "      {\"url\": \"https://verteiler2.mediathekview.de/\", \"weight\": 1.2},\n"
-                                     "      {\"url\": \"https://verteiler4.mediathekview.de/\", \"weight\": 1.2},\n"
-                                     "      {\"url\": \"https://verteiler6.mediathekview.de/\", \"weight\": 1.2},\n"
-                                     "      {\"url\": \"https://verteiler.mediathekviewweb.de/\", \"weight\": 1.2}\n"
+                                     "      {\"url\": \"https://verteiler1.mediathekview.de/\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"https://verteiler2.mediathekview.de/\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"https://verteiler4.mediathekview.de/\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"https://verteiler6.mediathekview.de/\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"https://verteiler.mediathekviewweb.de/\", \"weight\": 60.0}\n"
                                      "  ]"
-                                     "}");
+                                     "}
+        )"_json;*/
+
+        std::ifstream i(file_name);
+        nlohmann::json j;
+        i >> j;
+        data = j;
 
         if (data.version != 1) {
             std::cerr << "Invalid config file format" << std::endl;
@@ -163,7 +160,7 @@ quicktype::config parse_config_file() {
         std::cout << "address: " << data.address << std::endl;
 #endif
     }
-    catch (nlohmann::detail::out_of_range &e) {
+    catch (nlohmann::json::parse_error &e) {
         std::cerr << "EXCEPTION PARSING CONFIG FILE: " << e.what() << std::endl;
         ::exit(EXIT_FAILURE);
     }
@@ -171,16 +168,12 @@ quicktype::config parse_config_file() {
     return data;
 }
 
-void setup_server_list(quicktype::config &data) {
-    for (const auto &item : data.servers)
-        g_serverList.emplace_back(ServerData{item.url});
-}
-
 void wait_for_thread_termination(std::vector<std::thread> &v) {
     log(INFO, "Waiting for thread termination");
 
-    for (auto &t : v)
+    for (auto &t : v) {
         t.join();
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -194,7 +187,6 @@ int main(int argc, char *argv[]) {
     boost::program_options::options_description desc("Erlaubte Optionen");
     desc.add_options()
             ("help", "Hilfe anzeigen")
-            ("debug", boost::program_options::value<bool>(&debug)->default_value(false), "enable debug mode")
             ("config-file", boost::program_options::value<std::string>(&config_file_name)->required());
 
     boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).run(), vm);
@@ -205,13 +197,13 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
-    data = parse_config_file();
+    data = parse_config_file(config_file_name);
     //fill server data
-    setup_server_list(data);
+    serverPool.init(data.servers);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    openlog(APPLICATION_NAME.c_str(), LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+    openlog(APPLICATION_NAME, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
     log(INFO, "HTTP Redirect Server started");
 
@@ -227,14 +219,15 @@ int main(int argc, char *argv[]) {
 
     //watchdog...
     watchdog_timer.async_wait(
-            boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer, &g_serverList));
+            boost::bind(watchdog_timer_handler, boost::asio::placeholders::error, &watchdog_timer, &data.servers));
 
     //http handler
     boost::asio::spawn(ioc, std::bind(&do_listen, std::ref(ioc),
                                       tcp::endpoint{boost::asio::ip::make_address(data.address), data.port},
                                       std::placeholders::_1));
 
-    std::vector<std::thread> ioc_thread_list{static_cast<unsigned long>(threads - 1)};
+    std::vector<std::thread> ioc_thread_list;
+    ioc_thread_list.reserve(static_cast<unsigned long>(threads - 1));
     for (auto i = threads - 1; i > 0; --i)
         ioc_thread_list.emplace_back([&ioc] {
             ioc.run();
@@ -250,6 +243,8 @@ int main(int argc, char *argv[]) {
     closelog();
 
     wait_for_thread_termination(ioc_thread_list);
+
+    log(INFO, "Successful termination");
 
     return EXIT_SUCCESS;
 }

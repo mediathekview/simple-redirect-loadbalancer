@@ -11,9 +11,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -flto -march=native 
 find_package(Boost REQUIRED COMPONENTS system coroutine program_options)
 find_package(CURL REQUIRED)
 
-add_executable(mv_redirect_server main.cpp lambda.h ServerData.h
+add_executable(mv_redirect_server main.cpp lambda.h
         watchdog_handler.cpp watchdog_handler.h utils.cpp utils.h
-        config.hpp Generators.hpp helper.hpp server.hpp)
+        config.hpp Generators.hpp helper.hpp server.hpp ServerPool.cpp ServerPool.h)
 
 include_directories(${CURL_INCLUDE_DIR})
 include_directories(${Boost_INCLUDE_DIRS})
