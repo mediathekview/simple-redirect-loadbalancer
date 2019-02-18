@@ -1,0 +1,8 @@
+.git
+.gitignore
+.gitlab-ci.yaml
+.dockerignore
+README.md
+LICENCE
+docker/
+ci/

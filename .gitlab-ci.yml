@@ -1,0 +1,64 @@
+variables:
+  DOCKER_DRIVER: overlay2
+
+  DOCKER_BASH_IMAGE_LATEST: "$CI_REGISTRY_IMAGE/common/docker-bash:latest"
+  DOCKER_BASH_IMAGE_SHA: "$CI_REGISTRY_IMAGE/common/docker-bash:$CI_COMMIT_SHA"
+
+  BUILD_IMAGE_LATEST: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/build:latest"
+  BUILD_IMAGE_SHA: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/build:$CI_COMMIT_SHA"
+  BUILD_IMAGE_BEFORE_SHA: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/build:$CI_COMMIT_BEFORE_SHA"
+
+  DIST_IMAGE_LATEST: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/dist:latest"
+  DIST_IMAGE_SHA: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/dist:$CI_COMMIT_SHA"
+  DIST_IMAGE_BEFORE_SHA: "$CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG/dist:$CI_COMMIT_BEFORE_SHA"
+
+before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - mkdir empty_dir
+
+image: $DOCKER_BASH_IMAGE_LATEST
+
+services:
+  - docker:dind
+
+stages:
+  - build:dependencies
+  - build:application
+  - pack
+
+build:docker-bash:
+  stage: build:dependencies
+  image: docker:stable
+  tags:
+    - docker
+  only:
+    variables:
+      - $BUILD_DOCKER_BASH == "true"
+  script:
+    - docker pull $DOCKER_BASH_IMAGE_LATEST || true
+    - docker build --pull -f ci/docker-bash.dockerfile --cache-from $DOCKER_BASH_IMAGE_LATEST --tag $DOCKER_BASH_IMAGE_SHA --tag $DOCKER_BASH_IMAGE_LATEST empty_dir
+    - docker push $DOCKER_BASH_IMAGE_LATEST
+    - docker push $DOCKER_BASH_IMAGE_SHA
+
+build:balancer:
+  stage: build:application
+  tags:
+    - docker
+  except:
+    - schedules
+  script:
+    - bash ci/build-image.sh -f docker/build.dockerfile -c $BUILD_IMAGE_BEFORE_SHA -c $BUILD_IMAGE_SHA -n $BUILD_IMAGE_SHA -n $BUILD_IMAGE_LATEST .
+    - bash ci/extract-from-image.sh $BUILD_IMAGE_SHA /tmp/simple-redirect-loadbalancer/build build
+  artifacts:
+    paths:
+      - build
+    expire_in: 3 months
+
+pack:dist:
+  stage: pack
+  tags:
+    - docker
+  except:
+    - schedules
+  script:
+    - bash ci/build-image.sh -f docker/dist.dockerfile -a BUILD_IMAGE=$BUILD_IMAGE_SHA -c $DIST_IMAGE_BEFORE_SHA -c $DIST_IMAGE_SHA -n $DIST_IMAGE_SHA -n $DIST_IMAGE_LATEST empty_dir
