@@ -6,6 +6,7 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/program_options.hpp>
+#include <boost/format.hpp>
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -34,6 +35,8 @@ ServerPool serverPool;
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
+    static boost::format formatter("Redirecting Target: %s for IP %s to server %s");
+
     // Make sure we can handle the method
     if (!(req.method() == http::verb::get) && !(req.method() == http::verb::head)) {
         log(WARNING, "Illegal request other than GET or HEAD received.");
@@ -52,12 +55,11 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
         return send(std::move(bad_request("Unknown HTTP-method")));
     }
 
-    const std::string destination = req.target().to_string();
-    const std::string server = serverPool.getNext().url;
-    const boost::asio::ip::address addr = send.stream_.remote_endpoint().address();
-    const std::string logMessage = "Redirecting Target: " + destination + " for IP " + addr.to_string() + " to server "
-                                   + server;
-    log(INFO, logMessage);
+    const auto destination = req.target().to_string();
+    const auto server = serverPool.getNext().url;
+    const auto addr = send.stream_.remote_endpoint().address();
+    formatter % destination % addr.to_string() % server;
+    log(INFO, formatter.str());
 
     auto const redirect =
             [&req, &destination, &server]() {
@@ -136,16 +138,20 @@ quicktype::config parse_config_file(std::string &file_name) {
                                      "  \"port\": 8080,\n"
                                      "  \"address\":\"0.0.0.0\",\n"
                                      "  \"servers\": ["
-                                     "      {\"url\": \"https://verteiler1.mediathekview.de/\", \"weight\": 10.0},\n"
-                                     "      {\"url\": \"https://verteiler2.mediathekview.de/\", \"weight\": 10.0},\n"
-                                     "      {\"url\": \"https://verteiler4.mediathekview.de/\", \"weight\": 10.0},\n"
-                                     "      {\"url\": \"https://verteiler6.mediathekview.de/\", \"weight\": 10.0},\n"
-                                     "      {\"url\": \"https://verteiler.mediathekviewweb.de/\", \"weight\": 60.0}\n"
+                                     "      {\"url\": \"url\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"url\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"url\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"url\", \"weight\": 10.0},\n"
+                                     "      {\"url\": \"url\", \"weight\": 60.0}\n"
                                      "  ]"
                                      "}
         )"_json;*/
 
         std::ifstream i(file_name);
+        if (i.fail()) {
+            std::cerr << "Config file not found, terminating." << std::endl;
+            exit(EXIT_FAILURE);
+        }
         nlohmann::json j;
         i >> j;
         data = j;
@@ -177,7 +183,7 @@ void wait_for_thread_termination(std::vector<std::thread> &v) {
     }
 }
 
-std::string parse_command_line(int argc, char *argv[],po::variables_map& vm) {
+std::string parse_command_line(int argc, char *argv[], po::variables_map &vm) {
     std::string config_file_name;
 
     try {
@@ -216,7 +222,7 @@ int main(int argc, char *argv[]) {
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
     std::cout << "Version 1.3" << std::endl;
 
-    config_file_name = parse_command_line(argc,argv,vm);
+    config_file_name = parse_command_line(argc, argv, vm);
 
     //here all options are safe to use
     data = parse_config_file(config_file_name);
