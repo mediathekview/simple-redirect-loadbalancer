@@ -24,6 +24,7 @@
 
 
 using tcp = boost::asio::ip::tcp;
+namespace po = boost::program_options;
 namespace http = boost::beast::http;
 
 #define APPLICATION_NAME "mv_redirect_server"
@@ -176,27 +177,48 @@ void wait_for_thread_termination(std::vector<std::thread> &v) {
     }
 }
 
+std::string parse_command_line(int argc, char *argv[],po::variables_map& vm) {
+    std::string config_file_name;
+
+    try {
+        po::options_description desc("Erlaubte Optionen");
+        desc.add_options()
+                ("help", "Hilfe anzeigen")
+                ("config-file", po::value<std::string>(&config_file_name)->required());
+
+        po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+
+        if (vm.count("help")) {
+            std::cout << desc << std::endl;
+            exit(EXIT_SUCCESS);
+        }
+
+        //notify here to prevent program crash when options are missing...
+        po::notify(vm);
+    }
+    catch (po::required_option &e) {
+        std::cerr << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    catch (std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    return config_file_name;
+}
+
 int main(int argc, char *argv[]) {
-    boost::program_options::variables_map vm;
+    po::variables_map vm;
     std::string config_file_name;
     quicktype::config data;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
-    std::cout << "Version 1.2" << std::endl;
+    std::cout << "Version 1.3" << std::endl;
 
-    boost::program_options::options_description desc("Erlaubte Optionen");
-    desc.add_options()
-            ("help", "Hilfe anzeigen")
-            ("config-file", boost::program_options::value<std::string>(&config_file_name)->required());
+    config_file_name = parse_command_line(argc,argv,vm);
 
-    boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).run(), vm);
-    boost::program_options::notify(vm);
-
-    if (vm.count("help")) {
-        std::cout << desc << std::endl;
-        exit(EXIT_SUCCESS);
-    }
-
+    //here all options are safe to use
     data = parse_config_file(config_file_name);
     //fill server data
     serverPool.init(data.servers);
