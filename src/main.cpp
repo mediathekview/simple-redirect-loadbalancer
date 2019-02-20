@@ -35,8 +35,6 @@ ServerPool serverPool;
 
 template<class Body, class Allocator, class Send>
 void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
-    static boost::format formatter("Redirecting Target: %s for IP %s to server %s");
-
     // Make sure we can handle the method
     if (!(req.method() == http::verb::get) && !(req.method() == http::verb::head)) {
         log(WARNING, "Illegal request other than GET or HEAD received.");
@@ -58,8 +56,11 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>> &&req, Se
     const auto destination = req.target().to_string();
     const auto server = serverPool.getNext().url;
     const auto addr = send.stream_.remote_endpoint().address();
+#ifndef NDEBUG
+    static boost::format formatter("Redirecting Target: %s for IP %s to server %s");
     formatter % destination % addr.to_string() % server;
     log(INFO, formatter.str());
+#endif
 
     auto const redirect =
             [&req, &destination, &server]() {

@@ -7,7 +7,8 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -flto -funroll-loops")
-
+#for Alex build
+#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=skylake-avx512 -mtune=skylake-avx512 -flto -funroll-loops")
 find_package(Boost REQUIRED COMPONENTS system coroutine program_options)
 find_package(CURL REQUIRED)
 
