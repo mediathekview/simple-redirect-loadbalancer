@@ -2,9 +2,14 @@ ARG BUILD_IMAGE
 
 FROM ${BUILD_IMAGE} as build
 
-FROM alpine:latest
+FROM ubuntu:18.10
 
-RUN apk add --no-cache libcurl boost boost-program_options boost-coroutine
+RUN apt-get update
+RUN apt-get install --no-install-recommends -y \
+                      libcurl4 \
+                      libboost-system1.67.0 \
+                      libboost-coroutine1.67.0 \
+                      libboost-program-options1.67.0
 
 COPY --from=build /tmp/simple-redirect-loadbalancer/build/mv_redirect_server /usr/bin/mv_redirect_server
 RUN chmod +x /usr/bin/mv_redirect_server

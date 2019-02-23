@@ -1,6 +1,15 @@
-FROM alpine:latest as build
+FROM ubuntu:18.10 as build
 
-RUN apk add --no-cache curl-dev boost-dev cmake make g++
+RUN apt-get update
+RUN apt-get install --no-install-recommends -y \
+                      libcurl4-openssl-dev \
+                      cmake \
+                      make \
+                      g++ \
+                      libboost-system-dev \
+                      libboost-coroutine-dev \
+                      libboost-program-options-dev \
+                      nlohmann-json3-dev
 
 WORKDIR /tmp/simple-redirect-loadbalancer
 
