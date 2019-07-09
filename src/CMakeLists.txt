@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(mv_redirect_server)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(Boost_USE_STATIC_LIBS OFF) #dont use with docker!!!
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
