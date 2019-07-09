@@ -65,8 +65,6 @@ inline bool destination_is_invalid(const std::string& destination) {
     if (contains(destination, "curl"))
         return true;
     
-    //TODO use Boost.Xpressive for further regex
-    
     return false;
 }
 
@@ -302,7 +300,7 @@ int main ( int argc, char *argv[] ) {
     quicktype::config data;
 
     std::cout << "MediathekView HTTP Redirect Server" << std::endl;
-    std::cout << "Version 1.3" << std::endl;
+    std::cout << "Version 1.4" << std::endl;
 
     config_file_name = parse_command_line ( argc, argv, vm );
 
