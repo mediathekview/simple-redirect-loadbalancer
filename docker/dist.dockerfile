@@ -6,6 +6,7 @@ FROM ubuntu:18.10
 
 RUN apt-get update
 RUN apt-get install --no-install-recommends -y \
+  ca-certificates \
   libcurl4 \
   libboost-system1.67.0 \
   libboost-coroutine1.67.0 \
