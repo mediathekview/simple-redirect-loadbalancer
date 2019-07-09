@@ -10,7 +10,8 @@ RUN apt-get install --no-install-recommends -y \
   libcurl4 \
   libboost-system1.67.0 \
   libboost-coroutine1.67.0 \
-  libboost-program-options1.67.0
+  libboost-program-options1.67.0 && \
+  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=build /tmp/simple-redirect-loadbalancer/build/mv_redirect_server /usr/bin/mv_redirect_server
 RUN chmod +x /usr/bin/mv_redirect_server
