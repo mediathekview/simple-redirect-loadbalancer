@@ -9,7 +9,6 @@
 #include <vector>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
-#include <unordered_set>
 
 using namespace boost::algorithm;
 
@@ -78,42 +77,4 @@ bool destination_is_invalid ( const std::string& destination ) {
         return true;
 
     return false;
-}
-
-class BlackList {
-    public:
-    BlackList() {};
-
-    bool is_blocked ( const boost::asio::ip::address& addr ) {
-        return false;
-    };
-    private:
-    struct endpoint_hash {
-        std::size_t operator() ( boost::asio::ip::udp::endpoint const& ep ) const noexcept
-        {
-            auto accum = std::size_t ( 0 );
-            auto combine = [&accum] ( auto&& arg ) {
-                boost::hash_combine ( accum, arg );
-            };
-
-            combine ( ep.port() );
-            if ( auto&& addr = ep.address(); addr.is_v4() ) {
-                combine ( addr.to_v4().to_ulong() );
-            } else
-            {
-                combine ( addr.to_v6().to_bytes() );
-            }
-            combine ( ep.port() );
-            return accum;
-        }
-    };
-    std::unordered_set<boost::asio::ip::udp::endpoint, endpoint_hash> blockList;
-};
-
-
-BlackList blacklister;
-
-bool ip_is_blocked ( const boost::asio::ip::address& addr ) {
-
-    return blacklister.is_blocked ( addr );
 }

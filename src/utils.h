@@ -18,5 +18,4 @@ typedef enum {
 
 void log(log_level level, std::string msg);
 bool destination_is_invalid(const std::string& destination);
-bool ip_is_blocked ( const boost::asio::ip::address& addr );
 #endif //MV_REDIRECT_SERVER_UTILS_H

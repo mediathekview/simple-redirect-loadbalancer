@@ -40,24 +40,6 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                 const auto addr = send.stream_.remote_endpoint().address();
                 const auto destination = req.target().to_string();
 
-                if ( ip_is_blocked ( addr ) ) {
-                    log(WARNING, "ip_is_blocked: " + addr.to_string());
-                    
-                    //ip address is in black list, send block response and terminate handler
-                    auto const blocked =
-                    [&req]() {
-                        http::response<http::string_body> res {http::status::forbidden, req.version() };
-                        res.set ( http::field::server, APPLICATION_NAME );
-                        res.set ( http::field::content_type, CONTENT_TYPE );
-                        res.keep_alive ( false );
-                        res.body() = "";
-                        res.prepare_payload();
-                        return res;
-                    };
-
-                    return send ( std::move ( blocked() ) );
-                }
-
                 // Make sure we can handle the method
                 if ( ! ( req.method() == http::verb::get ) && ! ( req.method() == http::verb::head ) ) {
                     log ( WARNING, "Illegal request other than GET or HEAD received." );
