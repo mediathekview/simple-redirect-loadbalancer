@@ -8,7 +8,6 @@
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 #include <boost/format/exceptions.hpp>
-#include <boost/algorithm/string.hpp>
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -29,7 +28,6 @@
 using tcp = boost::asio::ip::tcp;
 namespace po = boost::program_options;
 namespace http = boost::beast::http;
-using namespace boost::algorithm;
 
 
 #define APPLICATION_NAME "mv_redirect_server"
@@ -37,43 +35,12 @@ using namespace boost::algorithm;
 
 ServerPool serverPool;
 
-/*inline bool ip_is_blocked ( const boost::asio::ip::address& addr ) {
-
-    return false;
-}*/
-
-/**
- * Do some basic checks on destination.
- * Those things should not occur in our destination
- */
-inline bool destination_is_invalid(const std::string& destination) {
-    if (contains(destination, ".php"))
-        return true;
-    
-    if (contains(destination, ".html"))
-        return true;
-    
-    if (contains(destination, ".js"))
-        return true;
-    
-    if (contains(destination, "127.0.0.1"))
-        return true;
-    
-    if (contains(destination, "wget"))
-        return true;
-    
-    if (contains(destination, "curl"))
-        return true;
-    
-    return false;
-}
-
 template<class Body, class Allocator, class Send> void handle_request ( http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send ) {
             try {
                 const auto addr = send.stream_.remote_endpoint().address();
                 const auto destination = req.target().to_string();
 
-                /*if ( ip_is_blocked ( addr ) ) {
+                if ( ip_is_blocked ( addr ) ) {
                     log(WARNING, "ip_is_blocked: " + addr.to_string());
                     
                     //ip address is in black list, send block response and terminate handler
@@ -89,7 +56,7 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                     };
 
                     return send ( std::move ( blocked() ) );
-                }*/
+                }
 
                 // Make sure we can handle the method
                 if ( ! ( req.method() == http::verb::get ) && ! ( req.method() == http::verb::head ) ) {

@@ -8,6 +8,9 @@
 #include <iostream>
 #include <vector>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+
+using namespace boost::algorithm;
 
 /**
  * Thread pool used for keeping syslog off the main exec thread.
@@ -15,9 +18,24 @@
 static boost::asio::thread_pool syslog_pool ( std::thread::hardware_concurrency() );
 
 void log ( log_level level, std::string msg ) {
-    boost::asio::post ( syslog_pool, [level, msg]() {
+    #define APPLICATION_NAME "mv_redirect_server"
+
+    switch (level){
+        case WARNING:
+            std::cerr << APPLICATION_NAME << " WARNING: " << msg << std::endl;
+            break;
+            
+        case INFO:
+            std::cerr << APPLICATION_NAME << " INFO: " << msg << std::endl;
+            break;
+            
+        case ERROR:
+            std::cerr << APPLICATION_NAME << " ERROR: " << msg << std::endl;
+            break;
+    }
+    /*boost::asio::post ( syslog_pool, [level, msg]() {
         syslog ( level, "%s", msg.c_str() );
-    } );
+    } );*/
 }
 
 void fail ( boost::system::error_code ec, char const *what ) {
@@ -32,4 +50,35 @@ void fail ( boost::system::error_code ec, char const *what ) {
     } catch ( ... ) {
         log ( ERROR, "Unknown exception in fail()" );
     }
+}
+
+/**
+ * Do some basic checks on destination.
+ * Those things should not occur in our destination
+ */
+bool destination_is_invalid(const std::string& destination) {
+    if (contains(destination, ".php"))
+        return true;
+    
+    if (contains(destination, ".html"))
+        return true;
+    
+    if (contains(destination, ".js"))
+        return true;
+    
+    if (contains(destination, "127.0.0.1"))
+        return true;
+    
+    if (contains(destination, "wget"))
+        return true;
+    
+    if (contains(destination, "curl"))
+        return true;
+    
+    return false;
+}
+
+bool ip_is_blocked ( const boost::asio::ip::address& addr ) {
+
+    return false;
 }
