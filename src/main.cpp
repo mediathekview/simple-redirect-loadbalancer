@@ -77,7 +77,7 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                 }
                 
                 if (destination_is_invalid(destination)) {
-                    log(ERROR,"destination_is_invalid for IP: " + addr.to_string() + "and destination: " + destination);
+                    log(ERROR,"destination_is_invalid for IP: " + addr.to_string() + " and destination: " + destination);
                     
                     //we detected illegal content in destination, so fool them...
                     auto const unavailable_for_legal_reasons =
