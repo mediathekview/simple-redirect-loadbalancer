@@ -18,23 +18,25 @@ using namespace boost::algorithm;
 static boost::asio::thread_pool syslog_pool ( std::thread::hardware_concurrency() );
 
 void log ( log_level level, std::string msg ) {
+    std::string output = "mv_redirect_server";
     switch ( level ) {
     case WARNING:
-        std::cerr << "mv_redirect_server WARNING: " << msg << std::endl;
+        output += " WARNING: ";
         break;
 
     case INFO:
-        std::cerr << "mv_redirect_server INFO: " << msg << std::endl;
+        output += " INFO: ";
         break;
 
     case ERROR:
-        std::cerr << "mv_redirect_server ERROR: " << msg << std::endl;
+        output += " ERROR: ";
         break;
     }
 
-    /*boost::asio::post ( syslog_pool, [level, msg]() {
-        syslog ( level, "%s", msg.c_str() );
-    } );*/
+    boost::asio::post ( syslog_pool, [/*level, */msg, output]() {
+        std::cerr << output << msg << std::endl;
+        //syslog ( level, "%s", msg.c_str() );
+    } );
 }
 
 void fail ( boost::system::error_code ec, char const *what ) {

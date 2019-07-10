@@ -49,7 +49,7 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                         http::response<http::string_body> res {http::status::bad_request, req.version() };
                         res.set ( http::field::server, APPLICATION_NAME );
                         res.set ( http::field::content_type, CONTENT_TYPE );
-                        res.keep_alive ( req.keep_alive() );
+                        res.keep_alive ( false);
                         res.body() = why.to_string();
                         res.prepare_payload();
                         return res;
@@ -65,8 +65,8 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                     auto const unavailable_for_legal_reasons =
                     [&req]() {
                         http::response<http::string_body> res {http::status::unavailable_for_legal_reasons, req.version() };
-                        //res.set ( http::field::server, APPLICATION_NAME );
-                        //res.set ( http::field::content_type, CONTENT_TYPE );
+                        res.set ( http::field::server, APPLICATION_NAME );
+                        res.set ( http::field::content_type, "text/plain" );
                         res.keep_alive ( false );
                         res.body() = "try harder next time";
                         res.prepare_payload();
@@ -87,7 +87,7 @@ template<class Body, class Allocator, class Send> void handle_request ( http::re
                 [&req, &destination, &server]() {
                     http::response<http::string_body> res {http::status::temporary_redirect, req.version() };
                     res.set ( http::field::server, APPLICATION_NAME );
-                    res.set ( http::field::content_type, CONTENT_TYPE );
+                    res.set ( http::field::content_type, "text/plain" );
                     res.set ( http::field::location, server + destination );
                     res.keep_alive ( req.keep_alive() );
                     res.body() = "";
